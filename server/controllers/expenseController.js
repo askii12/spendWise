@@ -26,21 +26,8 @@ export const createExpense = async (req, res) => {
 // GET ALL (with filtering)
 export const getExpenses = async (req, res) => {
   try {
-    const { category, startDate, endDate } = req.query;
-
-    let filter = { user: req.user._id };
-
-    if (category) filter.category = category;
-
-    if (startDate && endDate) {
-      filter.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
-    }
-
+    const filter = buildExpenseFilter(req);
     const expenses = await Expense.find(filter).sort({ date: -1 });
-
     res.json(expenses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -49,25 +36,49 @@ export const getExpenses = async (req, res) => {
 
 // UPDATE
 export const updateExpense = async (req, res) => {
+  const { amount, category, date, description } = req.body;
+
   try {
     const expense = await Expense.findById(req.params.id);
 
-    if (!expense) return res.status(404).json({ message: "Not found" });
+    if (!expense) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
     if (expense.user.toString() !== req.user._id.toString()) {
       return res.status(401).json({ message: "Not authorized" });
     }
 
-    const updated = await Expense.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    expense.amount = amount ?? expense.amount;
+    expense.category = category ?? expense.category;
+    expense.date = date ?? expense.date;
+    expense.description = description ?? expense.description;
 
-    res.json(updated);
+    const updatedExpense = await expense.save();
+
+    res.json(updatedExpense);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+const buildExpenseFilter = (req) => {
+  const { category, startDate, endDate } = req.query;
 
+  const filter = { user: req.user._id };
+
+  if (category) {
+    filter.category = category;
+  }
+
+  if (startDate || endDate) {
+    filter.date = {};
+
+    if (startDate) filter.date.$gte = new Date(startDate);
+    if (endDate) filter.date.$lte = new Date(endDate);
+  }
+
+  return filter;
+};
 // DELETE
 export const deleteExpense = async (req, res) => {
   try {
@@ -88,10 +99,11 @@ export const deleteExpense = async (req, res) => {
 };
 
 export const getSummary = async (req, res) => {
-  //TOTAL SUMMARY
   try {
+    const filter = buildExpenseFilter(req);
+
     const result = await Expense.aggregate([
-      { $match: { user: req.user._id } },
+      { $match: filter },
       {
         $group: {
           _id: null,
@@ -107,10 +119,11 @@ export const getSummary = async (req, res) => {
 };
 
 export const getByCategory = async (req, res) => {
-  //BY CATEGORY (Pie Chart)
   try {
+    const filter = buildExpenseFilter(req);
+
     const data = await Expense.aggregate([
-      { $match: { user: req.user._id } },
+      { $match: filter },
       {
         $group: {
           _id: "$category",
@@ -124,12 +137,12 @@ export const getByCategory = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const getByMonth = async (req, res) => {
-  //BY MONTH (Line Chart)
   try {
+    const filter = buildExpenseFilter(req);
+
     const data = await Expense.aggregate([
-      { $match: { user: req.user._id } },
+      { $match: filter },
       {
         $group: {
           _id: {
