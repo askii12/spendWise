@@ -53,9 +53,6 @@ Backend API: https://your-backend-link
 ### Dashboard
 ![Dashboard](./public/screenshots/dashboard-overview.png)
 
-### Expense Management
-![Expenses](./public/screenshots/expense-form.png)
-
 ### Analytics
 ![Analytics](./public/screenshots/analytics-filters.png)
 
