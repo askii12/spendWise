@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import prisma from "../config/prisma.js";
 
 export const protect = async (req, res, next) => {
   let token;
@@ -13,15 +13,22 @@ export const protect = async (req, res, next) => {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      req.user = await User.findById(decoded.id).select("-password");
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+      });
 
+      if (!user) {
+        return res.status(401).json({ message: "Not authorized" });
+      }
+
+      req.user = user;
       next();
     } catch (error) {
-      res.status(401).json({ message: "Not authorized" });
+      return res.status(401).json({ message: "Not authorized" });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: "No token" });
+    return res.status(401).json({ message: "No token" });
   }
 };

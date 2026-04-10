@@ -1,20 +1,40 @@
-import Expense from "../models/Expense.js";
+import prisma from "../config/prisma.js";
 
-// CREATE
+const buildWhere = (req) => {
+  const { category, startDate, endDate } = req.query;
+
+  const where = {
+    userId: req.user.id,
+  };
+
+  if (category) {
+    where.category = category;
+  }
+
+  if (startDate || endDate) {
+    where.date = {};
+    if (startDate) where.date.gte = new Date(startDate);
+    if (endDate) where.date.lte = new Date(endDate);
+  }
+
+  return where;
+};
 export const createExpense = async (req, res) => {
-  const { amount, category, date, description } = req.body;
+  const { amount, category, date, description } = req.body || {};
 
   if (!amount || !category || !date) {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
   try {
-    const expense = await Expense.create({
-      user: req.user._id,
-      amount,
-      category,
-      date,
-      description,
+    const expense = await prisma.expense.create({
+      data: {
+        amount: Number(amount),
+        category,
+        date: new Date(date),
+        description,
+        userId: req.user.id,
+      },
     });
 
     res.status(201).json(expense);
@@ -22,97 +42,87 @@ export const createExpense = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
-// GET ALL (with filtering)
 export const getExpenses = async (req, res) => {
   try {
-    const filter = buildExpenseFilter(req);
-    const expenses = await Expense.find(filter).sort({ date: -1 });
+    const expenses = await prisma.expense.findMany({
+      where: buildWhere(req),
+      orderBy: { date: "desc" },
+    });
+
     res.json(expenses);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// UPDATE
 export const updateExpense = async (req, res) => {
   const { amount, category, date, description } = req.body;
+  const expenseId = Number(req.params.id);
 
   try {
-    const expense = await Expense.findById(req.params.id);
+    const expense = await prisma.expense.findUnique({
+      where: { id: expenseId },
+    });
 
     if (!expense) {
       return res.status(404).json({ message: "Not found" });
     }
 
-    if (expense.user.toString() !== req.user._id.toString()) {
+    if (expense.userId !== req.user.id) {
       return res.status(401).json({ message: "Not authorized" });
     }
 
-    expense.amount = amount ?? expense.amount;
-    expense.category = category ?? expense.category;
-    expense.date = date ?? expense.date;
-    expense.description = description ?? expense.description;
-
-    const updatedExpense = await expense.save();
+    const updatedExpense = await prisma.expense.update({
+      where: { id: expenseId },
+      data: {
+        amount: amount !== undefined ? Number(amount) : expense.amount,
+        category: category ?? expense.category,
+        date: date ? new Date(date) : expense.date,
+        description: description ?? expense.description,
+      },
+    });
 
     res.json(updatedExpense);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-const buildExpenseFilter = (req) => {
-  const { category, startDate, endDate } = req.query;
 
-  const filter = { user: req.user._id };
-
-  if (category) {
-    filter.category = category;
-  }
-
-  if (startDate || endDate) {
-    filter.date = {};
-
-    if (startDate) filter.date.$gte = new Date(startDate);
-    if (endDate) filter.date.$lte = new Date(endDate);
-  }
-
-  return filter;
-};
-// DELETE
 export const deleteExpense = async (req, res) => {
+  const expenseId = Number(req.params.id);
+
   try {
-    const expense = await Expense.findById(req.params.id);
+    const expense = await prisma.expense.findUnique({
+      where: { id: expenseId },
+    });
 
-    if (!expense) return res.status(404).json({ message: "Not found" });
+    if (!expense) {
+      return res.status(404).json({ message: "Not found" });
+    }
 
-    if (expense.user.toString() !== req.user._id.toString()) {
+    if (expense.userId !== req.user.id) {
       return res.status(401).json({ message: "Not authorized" });
     }
 
-    await expense.deleteOne();
+    await prisma.expense.delete({
+      where: { id: expenseId },
+    });
 
     res.json({ message: "Deleted" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const getSummary = async (req, res) => {
   try {
-    const filter = buildExpenseFilter(req);
-
-    const result = await Expense.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: null,
-          total: { $sum: "$amount" },
-        },
+    const result = await prisma.expense.aggregate({
+      where: buildWhere(req),
+      _sum: {
+        amount: true,
       },
-    ]);
+    });
 
-    res.json(result[0] || { total: 0 });
+    res.json({ total: result._sum.amount || 0 });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -120,42 +130,60 @@ export const getSummary = async (req, res) => {
 
 export const getByCategory = async (req, res) => {
   try {
-    const filter = buildExpenseFilter(req);
-
-    const data = await Expense.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: "$category",
-          total: { $sum: "$amount" },
-        },
+    const data = await prisma.expense.groupBy({
+      by: ["category"],
+      where: buildWhere(req),
+      _sum: {
+        amount: true,
       },
-    ]);
+      orderBy: {
+        category: "asc",
+      },
+    });
 
-    res.json(data);
+    const formatted = data.map((item) => ({
+      _id: item.category,
+      total: item._sum.amount || 0,
+    }));
+
+    res.json(formatted);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
 export const getByMonth = async (req, res) => {
   try {
-    const filter = buildExpenseFilter(req);
-
-    const data = await Expense.aggregate([
-      { $match: filter },
-      {
-        $group: {
-          _id: {
-            year: { $year: "$date" },
-            month: { $month: "$date" },
-          },
-          total: { $sum: "$amount" },
-        },
+    const expenses = await prisma.expense.findMany({
+      where: buildWhere(req),
+      select: {
+        amount: true,
+        date: true,
       },
-      { $sort: { "_id.year": 1, "_id.month": 1 } },
-    ]);
+      orderBy: {
+        date: "asc",
+      },
+    });
 
-    res.json(data);
+    const grouped = {};
+
+    for (const expense of expenses) {
+      const d = new Date(expense.date);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const key = `${year}-${month}`;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          _id: { year, month },
+          total: 0,
+        };
+      }
+
+      grouped[key].total += Number(expense.amount);
+    }
+
+    res.json(Object.values(grouped));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

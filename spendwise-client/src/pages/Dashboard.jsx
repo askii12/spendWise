@@ -79,13 +79,30 @@ export default function Dashboard() {
 
       setExpenses(expensesRes.data);
       setCategoryData(categoryRes.data);
+      console.log("monthRes.data", monthRes.data);
+      const formattedMonthlyData = monthRes.data
+        .map((item) => {
+          if (item?._id?.month && item?._id?.year) {
+            return {
+              name: `${String(item._id.month).padStart(2, "0")}/${item._id.year}`,
+              total: Number(item.total),
+            };
+          }
 
-      const formattedMonthlyData = monthRes.data.map((item) => ({
-        name: `${String(item._id.month).padStart(2, "0")}/${item._id.year}`,
-        total: item.total,
-      }));
+          if (item?.month && item?.year) {
+            return {
+              name: `${String(item.month).padStart(2, "0")}/${item.year}`,
+              total: Number(item.total),
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean);
 
       setMonthlyData(formattedMonthlyData);
+      console.log("monthlyData raw:", monthRes.data);
+      console.log("monthlyData formatted:", formattedMonthlyData);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
       toast.error("Failed to load dashboard data");
@@ -113,7 +130,7 @@ export default function Dashboard() {
 
       await API.delete(`/expenses/${deleteId}`);
 
-      if (editingExpense?._id === deleteId) {
+      if (editingExpense?.id === deleteId) {
         setEditingExpense(null);
       }
 
@@ -255,7 +272,7 @@ export default function Dashboard() {
                     categoryMeta[expense.category] || categoryMeta.Other;
 
                   return (
-                    <div key={expense._id} className="expense-item">
+                    <div key={expense.id} className="expense-item">
                       <div className="expense-main">
                         <div className="expense-title-row">
                           <span className={`badge badge-${meta.className}`}>
@@ -292,7 +309,7 @@ export default function Dashboard() {
                           <button
                             type="button"
                             className="danger"
-                            onClick={() => handleDeleteExpense(expense._id)}
+                            onClick={() => handleDeleteExpense(expense.id)}
                           >
                             Delete
                           </button>
@@ -320,7 +337,7 @@ export default function Dashboard() {
           <div className="card">
             <h3>Top Category</h3>
             <div className="summary-value" style={{ fontSize: "24px" }}>
-              {topCategory ? topCategory._id : "—"}
+              {topCategory ? topCategory.id : "—"}
             </div>
           </div>
 
@@ -349,7 +366,7 @@ export default function Dashboard() {
                 >
                   {categoryData.map((entry, index) => (
                     <Cell
-                      key={entry._id || index}
+                      key={entry.id || index}
                       fill={COLORS[index % COLORS.length]}
                     />
                   ))}

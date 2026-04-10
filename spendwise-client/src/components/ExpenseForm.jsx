@@ -92,7 +92,7 @@ export default function ExpenseForm({
       setError("");
 
       if (isEditing) {
-        await API.put(`/expenses/${editingExpense._id}`, payload);
+        await API.put(`/expenses/${editingExpense.id}`, payload);
         toast.success("Expense updated");
       } else {
         await API.post("/expenses", payload);

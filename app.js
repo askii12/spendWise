@@ -1,12 +1,11 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
-import connectDB from "./server/config/db.js";
+
 import authRoutes from "./server/routes/authRoutes.js";
 import expenseRoutes from "./server/routes/expenseRoutes.js";
-dotenv.config();
 
-connectDB();
+dotenv.config();
 
 const app = express();
 
@@ -19,6 +18,7 @@ app.get("/", (req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/expenses", expenseRoutes);
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
