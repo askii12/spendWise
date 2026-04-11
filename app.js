@@ -11,8 +11,11 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://spend-wise-5vd2.vercel.app/"],
-  }),
+    origin: [
+      "http://localhost:5173",
+      "https://spend-wise-5vd2.vercel.app",
+    ],
+  })
 );
 app.use(express.json());
 
