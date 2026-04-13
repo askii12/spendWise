@@ -6,8 +6,8 @@ A modern fullstack expense tracking web application with analytics, built using 
 
 ## Live Demo
 
-Frontend: [https://your-frontend-link  ](https://spend-wise-zdt8.vercel.app/)
-Backend API: [https://your-backend-link ](https://spendwise-16.onrender.com) 
+Frontend: https://spend-wise-zdt8.vercel.app/
+Backend API: https://spendwise-16.onrender.com 
 
 ---
 
